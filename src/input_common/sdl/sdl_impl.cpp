@@ -586,11 +586,18 @@ private:
 class SDLAnalog final : public Input::AnalogDevice {
 public:
     SDLAnalog(std::shared_ptr<std::vector<std::shared_ptr<SDLJoystick>>> joysticks_, int axis_x_,
-              int axis_y_, float deadzone_, int port_ = -1, bool isController_ = true)
+              int axis_y_, float deadzone_, int port_ = -1, bool isController_ = true,
+              bool invert_x_ = false, bool invert_y_ = false)
         : joysticks(joysticks_), axis_x(axis_x_), axis_y(axis_y_), deadzone(deadzone_),
-          isController(isController_), port(port_) {}
+          isController(isController_), port(port_), invert_x(invert_x_), invert_y(invert_y_) {}
 
     std::tuple<float, float> GetStatus() const override {
+        const auto [x, y] = GetRawStatus();
+        return std::make_tuple(invert_x ? -x : x, invert_y ? -y : y);
+    }
+
+private:
+    std::tuple<float, float> GetRawStatus() const {
         float rMax = 0.0f, xMax = 0.0f, yMax = 0.0f;
         if (port >= 0 && joysticks && static_cast<int>(joysticks->size()) > port &&
             joysticks->at(port)) {
@@ -628,6 +635,8 @@ private:
     const float deadzone;
     bool isController;
     int port;
+    bool invert_x;
+    bool invert_y;
 };
 
 class SDLMotion final : public Input::MotionDevice {
@@ -744,6 +753,7 @@ public:
      *     - "maptype": could be "guid+port", "guid", or "all"
      *     - "axis_x": the index of the axis to be bind as x-axis
      *     - "axis_y": the index of the axis to be bind as y-axis
+     *     - "invert_x" / "invert_y": 1 to invert that axis (default 0)
      */
     std::unique_ptr<Input::AnalogDevice> Create(const Common::ParamPackage& params) override {
         const std::string maptype = params.Get("maptype", "guid+port");
@@ -757,7 +767,11 @@ public:
 
         auto joysticks = state.GetJoysticksByGUID(guid);
 
-        return std::make_unique<SDLAnalog>(joysticks, axis_x, axis_y, deadzone, port, controller);
+        const bool invert_x = params.Get("invert_x", 0) != 0;
+        const bool invert_y = params.Get("invert_y", 0) != 0;
+
+        return std::make_unique<SDLAnalog>(joysticks, axis_x, axis_y, deadzone, port, controller,
+                                           invert_x, invert_y);
     }
 
 private:
